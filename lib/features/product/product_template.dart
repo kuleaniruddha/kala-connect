@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/product_payload.dart';
@@ -161,6 +162,57 @@ class _PriceOrb extends StatelessWidget {
   final ProductPayload product;
   final bool hindi;
 
+  void _showPriceDialog(BuildContext context) {
+    final controller = TextEditingController(text: '${product.suggestedPrice}');
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(hindi ? 'कीमत बदलें' : 'Edit Price', style: const TextStyle(fontWeight: FontWeight.w900)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              hindi ? 'नया दाम दर्ज करें (₹):' : 'Enter new price (₹):',
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF6B6572)),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              autofocus: true,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+              decoration: InputDecoration(
+                prefixText: '₹ ',
+                prefixStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(hindi ? 'रद्द करें' : 'Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final val = int.tryParse(controller.text);
+              if (val != null && val > 0) {
+                context.read<ProductController>().changePrice(val);
+              }
+              Navigator.of(ctx).pop();
+            },
+            style: FilledButton.styleFrom(backgroundColor: KalaColors.terracotta),
+            child: Text(hindi ? 'सुरक्षित करें' : 'Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => _InkPanel(
         child: Row(children: <Widget>[
@@ -171,14 +223,31 @@ class _PriceOrb extends StatelessWidget {
             child: const Icon(Icons.currency_rupee_rounded, size: 38),
           ),
           const SizedBox(width: 15),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
-            Text(hindi ? 'सुझाई गई कीमत' : 'Suggested price', style: const TextStyle(fontWeight: FontWeight.w700)),
-            Text('₹${product.suggestedPrice}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 34)),
-            Text('Market range: ₹${product.priceLow} – ₹${product.priceHigh}', style: const TextStyle(fontWeight: FontWeight.w700, color: KalaColors.leaf)),
-          ])),
+          Expanded(
+            child: InkWell(
+              onTap: () => _showPriceDialog(context),
+              borderRadius: BorderRadius.circular(12),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+                Row(
+                  children: [
+                    Text(hindi ? 'सुझाई गई कीमत' : 'Suggested price', style: const TextStyle(fontWeight: FontWeight.w700)),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.edit_rounded, size: 14, color: KalaColors.indigo),
+                  ],
+                ),
+                Text('₹${product.suggestedPrice}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 34)),
+                Text('Market range: ₹${product.priceLow} – ₹${product.priceHigh}', style: const TextStyle(fontWeight: FontWeight.w700, color: KalaColors.leaf)),
+              ]),
+            ),
+          ),
+          IconButton(
+            onPressed: () => _showPriceDialog(context),
+            icon: const Icon(Icons.edit_note_rounded, color: KalaColors.indigo, size: 28),
+            tooltip: hindi ? 'लिखकर कीमत बदलें' : 'Type to change price',
+          ),
           IconButton(
             onPressed: () => context.read<VoiceController>().toggleListening(),
-            icon: const Icon(Icons.mic_rounded, color: KalaColors.terracotta),
+            icon: const Icon(Icons.mic_rounded, color: KalaColors.terracotta, size: 28),
             tooltip: hindi ? 'कहकर कीमत बदलें' : 'Say a price to change it',
           ),
         ]),

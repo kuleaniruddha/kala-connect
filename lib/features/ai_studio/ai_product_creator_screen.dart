@@ -1,11 +1,13 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../services/ai_studio_service.dart';
 import '../../services/audio_insight_service.dart';
 import '../../services/device_capture_service.dart';
+import '../../services/voice_command_parser.dart';
 import '../../state/app_flow_controller.dart';
 import '../../state/auth_controller.dart';
 import '../../state/product_controller.dart';
@@ -38,6 +40,8 @@ class _AiProductCreatorScreenState extends State<AiProductCreatorScreen> {
   PriceAssistantResult? _priceResult;
   final int _selectedLaborHours = 6;
   int? _customPrice;
+  final _priceTextController = TextEditingController();
+  bool _isListeningForPrice = false;
 
   // Publishing
   bool _isPublishing = false;
@@ -45,6 +49,7 @@ class _AiProductCreatorScreenState extends State<AiProductCreatorScreen> {
   @override
   void dispose() {
     _voiceNoteController.dispose();
+    _priceTextController.dispose();
     super.dispose();
   }
 
@@ -114,6 +119,7 @@ class _AiProductCreatorScreenState extends State<AiProductCreatorScreen> {
       setState(() {
         _priceResult = pricing;
         _customPrice = pricing.recommendedPrice;
+        _priceTextController.text = '${pricing.recommendedPrice}';
       });
     } finally {
       if (mounted) {
@@ -136,6 +142,56 @@ class _AiProductCreatorScreenState extends State<AiProductCreatorScreen> {
           _voiceNoteController.text = transcript;
         });
         _runAiStudioPipeline();
+      }
+    }
+
+    voice.addListener(listener);
+  }
+
+  void _onVoicePriceTap() async {
+    final voice = context.read<VoiceController>();
+    if (_isListeningForPrice) {
+      await voice.toggleListening();
+      setState(() => _isListeningForPrice = false);
+      return;
+    }
+
+    setState(() => _isListeningForPrice = true);
+    if (voice.mode != VoiceMode.listening) {
+      await voice.toggleListening();
+    }
+
+    void listener() {
+      if (!mounted) return;
+      final transcript = voice.lastTranscript;
+      if (transcript.isNotEmpty) {
+        final parsed = VoiceCommandParser.extractPrice(transcript);
+        if (parsed != null && parsed > 0) {
+          setState(() {
+            _customPrice = parsed;
+            _priceTextController.text = '$parsed';
+            _isListeningForPrice = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Text('Price updated to ₹$parsed via voice!'),
+                ],
+              ),
+              backgroundColor: KalaColors.leaf,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+          voice.removeListener(listener);
+          return;
+        }
+      }
+      if (voice.mode == VoiceMode.idle && _isListeningForPrice) {
+        setState(() => _isListeningForPrice = false);
+        voice.removeListener(listener);
       }
     }
 
@@ -247,8 +303,10 @@ class _AiProductCreatorScreenState extends State<AiProductCreatorScreen> {
                   setState(() {
                     _photoPaths.clear();
                     _voiceNoteController.clear();
+                    _priceTextController.clear();
                     _autoCatalog = null;
                     _priceResult = null;
+                    _customPrice = null;
                   });
                 },
                 style: FilledButton.styleFrom(backgroundColor: KalaColors.terracotta),
@@ -1025,20 +1083,196 @@ class _AiProductCreatorScreenState extends State<AiProductCreatorScreen> {
                 ],
               ),
             ),
+            const SizedBox(height: 16),
+            const Text(
+              'Customize Selling Price (Voice & Text):',
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: KalaColors.ink),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: _isListeningForPrice ? KalaColors.terracotta : KalaColors.leaf.withValues(alpha: 0.35),
+                  width: _isListeningForPrice ? 2 : 1.5,
+                ),
+                boxShadow: const [
+                  BoxShadow(color: Color(0x0E000000), blurRadius: 10, offset: Offset(0, 3)),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: KalaColors.leaf.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Center(
+                      child: Text('₹', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: KalaColors.leaf)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Type price or speak',
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF6B6572)),
+                        ),
+                        TextField(
+                          controller: _priceTextController,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: KalaColors.ink),
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(vertical: 2),
+                            border: InputBorder.none,
+                            hintText: 'Enter price',
+                          ),
+                          onChanged: (val) {
+                            final parsed = int.tryParse(val);
+                            if (parsed != null && parsed > 0) {
+                              setState(() => _customPrice = parsed);
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: _onVoicePriceTap,
+                      borderRadius: BorderRadius.circular(14),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: _isListeningForPrice ? KalaColors.terracotta : KalaColors.terracotta.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: _isListeningForPrice ? KalaColors.terracotta : KalaColors.terracotta.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _isListeningForPrice ? Icons.mic_rounded : Icons.mic_none_rounded,
+                              size: 18,
+                              color: _isListeningForPrice ? Colors.white : KalaColors.terracotta,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              _isListeningForPrice ? 'Listening…' : 'Voice',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w900,
+                                color: _isListeningForPrice ? Colors.white : KalaColors.terracotta,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (_isListeningForPrice) ...[
+              const SizedBox(height: 6),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 6),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: KalaColors.terracotta),
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Speak now: e.g. "850", "900 rupees", "कीमत 800"',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: KalaColors.terracotta),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 14),
             Row(
               children: [
-                const Expanded(child: Text('Adjust Price Slider:', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13))),
-                Text('₹${_customPrice ?? _priceResult!.recommendedPrice}', style: const TextStyle(fontWeight: FontWeight.w900, color: KalaColors.leaf)),
+                const Expanded(
+                  child: Text(
+                    'Fine-tune with Slider:',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: Color(0xFF6B6572)),
+                  ),
+                ),
+                Text(
+                  '₹${_customPrice ?? _priceResult!.recommendedPrice}',
+                  style: const TextStyle(fontWeight: FontWeight.w900, color: KalaColors.leaf, fontSize: 14),
+                ),
               ],
             ),
             Slider(
-              value: (_customPrice ?? _priceResult!.recommendedPrice).toDouble().clamp(_priceResult!.minSustainablePrice.toDouble(), _priceResult!.maxPremiumPrice.toDouble()),
+              value: (_customPrice ?? _priceResult!.recommendedPrice)
+                  .toDouble()
+                  .clamp(
+                    _priceResult!.minSustainablePrice.toDouble(),
+                    (_priceResult!.maxPremiumPrice < (_customPrice ?? _priceResult!.recommendedPrice)
+                        ? (_customPrice ?? _priceResult!.recommendedPrice).toDouble()
+                        : _priceResult!.maxPremiumPrice.toDouble()),
+                  ),
               min: _priceResult!.minSustainablePrice.toDouble(),
-              max: _priceResult!.maxPremiumPrice.toDouble(),
+              max: (_priceResult!.maxPremiumPrice < (_customPrice ?? _priceResult!.recommendedPrice)
+                  ? (_customPrice ?? _priceResult!.recommendedPrice).toDouble()
+                  : _priceResult!.maxPremiumPrice.toDouble()),
               divisions: 20,
               activeColor: KalaColors.leaf,
-              onChanged: (val) => setState(() => _customPrice = val.round()),
+              onChanged: (val) {
+                final rounded = val.round();
+                setState(() {
+                  _customPrice = rounded;
+                  _priceTextController.text = '$rounded';
+                });
+              },
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Min: ₹${_priceResult!.minSustainablePrice}',
+                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.black45),
+                ),
+                InkWell(
+                  onTap: () {
+                    setState(() {
+                      _customPrice = _priceResult!.recommendedPrice;
+                      _priceTextController.text = '${_priceResult!.recommendedPrice}';
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    child: Text(
+                      'Reset to AI (₹${_priceResult!.recommendedPrice})',
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: KalaColors.indigo),
+                    ),
+                  ),
+                ),
+                Text(
+                  'Max: ₹${_priceResult!.maxPremiumPrice}',
+                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.black45),
+                ),
+              ],
             ),
           ],
         ],

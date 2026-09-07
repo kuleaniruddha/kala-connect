@@ -15,6 +15,13 @@ void main() {
       expect(VoiceCommandParser.extractPrice('कीमत 750 कर दो'), 750);
     });
 
+    test('extracts standalone number and rupee suffix commands', () {
+      expect(VoiceCommandParser.extractPrice('850'), 850);
+      expect(VoiceCommandParser.extractPrice('850 rupees'), 850);
+      expect(VoiceCommandParser.extractPrice('900 rupaye'), 900);
+      expect(VoiceCommandParser.extractPrice('₹650'), 650);
+    });
+
     test('returns null where no price exists', () {
       expect(VoiceCommandParser.extractPrice('लाल रंग जोड़ें'), isNull);
     });

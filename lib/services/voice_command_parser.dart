@@ -22,9 +22,44 @@ abstract final class VoiceCommandParser {
   }
 
   static int? extractPrice(String transcript) {
-    final english = RegExp(r'(?:price|₹|rs\.?|rupees?)\s*(?:to|=|is)?\s*(\d+)', caseSensitive: false).firstMatch(transcript);
-    final hindi = RegExp(r'(?:कीमत|दाम)\s*(?:को)?\s*(\d+)').firstMatch(transcript);
-    return int.tryParse((english ?? hindi)?.group(1) ?? '');
+    // 1. Prefix with keyword: "price to 850", "₹850", "rs 850", "rupees 850", "कीमत 850", "दाम 850", "rate 850"
+    final prefixMatch = RegExp(
+      r'(?:price|cost|rate|₹|rs\.?|rupees?|rupaye|रुपये|कीमत|दाम|रेट)\s*(?:to|=|is|हो|रखो|करो|कर\s+दो)?\s*(\d+)',
+      caseSensitive: false,
+    ).firstMatch(transcript);
+    if (prefixMatch != null) {
+      final val = int.tryParse(prefixMatch.group(1) ?? '');
+      if (val != null && val > 0) return val;
+    }
+
+    // 2. Suffix with currency: "850 rupees", "850 rupaye", "850 rs", "850 रुपये"
+    final suffixMatch = RegExp(
+      r'(\d+)\s*(?:rupees?|rs\.?|rupaye|रुपये|₹|inr|टका)',
+      caseSensitive: false,
+    ).firstMatch(transcript);
+    if (suffixMatch != null) {
+      final val = int.tryParse(suffixMatch.group(1) ?? '');
+      if (val != null && val > 0) return val;
+    }
+
+    // 3. Command style: "change price to 500", "set to 850", "make it 850"
+    final commandMatch = RegExp(
+      r'(?:set|change|make)\s+(?:the\s+)?(?:price\s+)?(?:to\s+)?(\d+)',
+      caseSensitive: false,
+    ).firstMatch(transcript);
+    if (commandMatch != null) {
+      final val = int.tryParse(commandMatch.group(1) ?? '');
+      if (val != null && val > 0) return val;
+    }
+
+    // 4. Standalone number in voice input (e.g. "850", "₹850")
+    final pureNumberMatch = RegExp(r'^\s*(?:₹|rs\.?)?\s*(\d{2,6})\s*$', caseSensitive: false).firstMatch(transcript.trim());
+    if (pureNumberMatch != null) {
+      final val = int.tryParse(pureNumberMatch.group(1) ?? '');
+      if (val != null && val > 0) return val;
+    }
+
+    return null;
   }
 
   static int? _imageOrdinal(String lower, String source) {

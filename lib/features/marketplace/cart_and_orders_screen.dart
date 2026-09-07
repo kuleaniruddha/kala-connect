@@ -8,6 +8,7 @@ import '../../state/locale_controller.dart';
 import '../../theme/kala_theme.dart';
 import '../../widgets/ambient_living_canvas.dart';
 import 'checkout_bottom_sheet.dart';
+import 'invoice_sheet.dart';
 
 class CartAndOrdersScreen extends StatefulWidget {
   const CartAndOrdersScreen({this.initialTab = 0, super.key});
@@ -411,11 +412,7 @@ class _OrdersView extends StatelessWidget {
                 children: [
                   Text('${loc.tr('total_to_pay')} ₹${order.totalAmount}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: KalaColors.ink)),
                   TextButton.icon(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Certified artisan invoice downloaded.')),
-                      );
-                    },
+                    onPressed: () => InvoiceSheet.show(context, order),
                     icon: const Icon(Icons.receipt_long_rounded, size: 16),
                     label: Text(loc.tr('invoice'), style: const TextStyle(fontWeight: FontWeight.w800)),
                   ),

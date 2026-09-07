@@ -12,6 +12,7 @@ import '../../theme/kala_theme.dart';
 import '../../widgets/ambient_living_canvas.dart';
 import '../../widgets/artisan_follow_button.dart';
 import 'checkout_bottom_sheet.dart';
+import 'invoice_sheet.dart';
 
 class MarketplaceProductDetailsScreen extends StatefulWidget {
   const MarketplaceProductDetailsScreen({required this.product, super.key});
@@ -100,6 +101,14 @@ class _MarketplaceProductDetailsScreenState extends State<MarketplaceProductDeta
             style: const TextStyle(height: 1.3),
           ),
           actions: [
+            TextButton.icon(
+              onPressed: () {
+                Navigator.of(alertCtx).pop();
+                InvoiceSheet.show(context, order);
+              },
+              icon: const Icon(Icons.receipt_long_rounded, size: 18),
+              label: const Text('Download Invoice'),
+            ),
             FilledButton(
               onPressed: () => Navigator.of(alertCtx).pop(),
               style: FilledButton.styleFrom(backgroundColor: KalaColors.terracotta),
