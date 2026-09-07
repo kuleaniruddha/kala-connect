@@ -1,0 +1,34 @@
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "kala-connect-9648e",
+          "appId": "1:221451255408:android:cf593e6d17b559e2803eb5",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "web": {
+        "default": {
+          "projectId": "kala-connect-9648e",
+          "appId": "1:221451255408:web:da9ec1bf9926717e803eb5"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "kala-connect-9648e",
+          "configurations": {
+            "android": "1:221451255408:android:cf593e6d17b559e2803eb5",
+            "web": "1:221451255408:web:da9ec1bf9926717e803eb5"
+          }
+        }
+      }
+    }
+  }
+}
